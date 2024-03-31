@@ -1,9 +1,9 @@
 import pandas as pd
 
 # Specify the full input file paths
-file_path_apps_raw = '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/sf_id_lookup/report1711653633346.csv'
-file_path_yield = '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/ds_yield_forecasting/raw_yield_forecasting_applications_tlnd_202403271718-1711574328443.csv'
-file_path_results = '/Users/brent.postlethweight/Desktop/lottery_2024/Public_30_Results-2024-03-28T135414.csv'
+file_path_apps_raw = '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/sf_id_lookup/report1711815103787.csv'
+file_path_yield = '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/ds_yield_forecasting/raw_yield_forecasting_applications_tlnd_202403301212.csv'
+file_path_results = '/Users/brent.postlethweight/Desktop/lottery_2024/3.30_lottery_sim_results/Public_30_Results-2024-03-30T160225.csv'
 
 
 # Specify the full output file paths
@@ -13,7 +13,17 @@ waitlisted_results_output_file_path = '/Users/brent.postlethweight/Desktop/lotte
 
 
 # Read the apps CSV file using the specified file paths
-df_apps_raw = pd.read_csv(file_path_apps_raw, usecols=['18-Digit ID (Round App)', 'Application ID', '18-digit ID (hed_application)', 'Application Name', 'Program: School Name', 'Program Rank'], encoding='ISO-8859-1')
+df_apps_raw = pd.read_csv(file_path_apps_raw, encoding='ISO-8859-1')
+
+# Define a function to map grades to grade sorts
+def map_grade_to_grade_sort(grade):
+    if grade == 'K':
+        return 0
+    else:
+        return int(grade)
+
+# Apply the function to create the 'Grade Sort' column
+df_apps_raw['Grade Sort'] = df_apps_raw['App Grade'].apply(map_grade_to_grade_sort)
 
 # Filter the apps DataFrame where program rank equals 1
 filtered_df_apps_raw = df_apps_raw[df_apps_raw['Program Rank'] == 1]
@@ -59,7 +69,7 @@ df_offered = df_merged_apps_yield_results[df_merged_apps_yield_results['ASSIGNME
 df_offered.to_csv(offered_results_output_file_path, index=False)
 
 # Filter the merged DataFrame on 'ASSIGNMENT STATUS' where it equals 'Waitlisted'
-df_waitlisted = df_merged_apps_yield_results[(df_merged_apps_yield_results['ASSIGNMENT STATUS'] == 'Waitlisted') & (df_merged_apps_yield_results['OFFER COUNT'] == 0)]
+df_waitlisted = df_merged_apps_yield_results[(df_merged_apps_yield_results['ASSIGNMENT STATUS'] == 'Waitlisted') & (df_merged_apps_yield_results['OFFER COUNT'] == 0) & (df_merged_apps_yield_results['Program Rank'] == 1)]
 
 # Save the filtered DataFrame to a CSV file
 df_waitlisted.to_csv(waitlisted_results_output_file_path, index=False)
