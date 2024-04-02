@@ -2,9 +2,10 @@ import pandas as pd
 
 # Define file paths
 file_paths = {
-    'apps_raw': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/sf_id_lookup/report1711815103787.csv',
-    'yield': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/ds_yield_forecasting/raw_yield_forecasting_applications_tlnd_202403301212.csv',
-    'results': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/3.30_lottery_sim_results/Public_30_Results-2024-03-30T160225.csv',
+    'apps_raw': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/sf_id_lookup/report1712060729900.csv',
+    'yield': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/ds_yield_forecasting/raw_yield_forecasting_applications_tlnd_202404021704.csv',
+    'ozone': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/ds_yield_forecasting/Ozone Park Yield on Apps - 4_2_2024.csv',
+    'results': '/Users/brent.postlethweight/Desktop/lottery_2024/data_inputs/lottery_results/25_Results-2024-04-02T131632.csv',
     'full_output': '/Users/brent.postlethweight/Desktop/lottery_2024/merge_file_outputs/merged_data_full.csv',
     'offered_output': '/Users/brent.postlethweight/Desktop/lottery_2024/merge_file_outputs/merged_data_offered.csv',
     'waitlisted_output': '/Users/brent.postlethweight/Desktop/lottery_2024/merge_file_outputs/merged_data_waitlisted.csv'
@@ -14,6 +15,7 @@ file_paths = {
 df_apps_raw = pd.read_csv(file_paths['apps_raw'], encoding='ISO-8859-1')
 df_yield = pd.read_csv(file_paths['yield'], usecols=['round_app_id', 'probability_attending_5_days'])
 df_results = pd.read_csv(file_paths['results'])
+df_ozone = pd.read_csv(file_paths['ozone'])
 
 # Define a function to map grade 'K' to 0
 def map_grade_to_grade_sort(grade):
@@ -34,6 +36,31 @@ df_apps_calc = pd.merge(df_apps_raw, first_choice_school.rename(columns={'Progra
 # Merge the apps calc and yield files
 df_merged_apps_yield = pd.merge(df_apps_calc, df_yield, left_on='18-Digit ID (Round App)', right_on='round_app_id', how='left')
 
+'''
+# Loop over the 'probability_attending_5_days' column and change to 27% if the accepted school is Ozone Park MS
+df_merged_apps_yield['probability_attending_5_days'] = df_merged_apps_yield.apply(
+    lambda row: 0.27 if row['Program: School Name'] == 'SA Ozone Park Middle School' else row['probability_attending_5_days'],
+    axis=1
+)
+'''
+
+# Loop over each row in the DataFrame to replace the value with the yield figure in the Ozone file
+for index, row in df_merged_apps_yield.iterrows():
+    # Perform lookup and replace values
+    if row['Program: School Name'] == 'SA Ozone Park Middle School':
+        lookup_value = df_ozone.loc[df_ozone['round_app_id'] == row['round_app_id'], 'probability_attending_5_days'].values
+        if lookup_value.size > 0:
+            df_merged_apps_yield.at[index, 'probability_attending_5_days'] = lookup_value[0]
+
+# Loop over the 'probability_attending_5_days' column and change to 10% if Program Rank is not 1
+df_merged_apps_yield['probability_attending_5_days'] = df_merged_apps_yield.apply(
+    lambda row: 0.1 if row['Program Rank'] != 1 else row['probability_attending_5_days'],
+    axis=1
+)
+
+# Loop over the 'probability_attending_5_days' column and replace null values with 0.1
+df_merged_apps_yield['probability_attending_5_days'] = df_merged_apps_yield['probability_attending_5_days'].fillna(0.1)
+
 # Merge the results file onto the merged apps and yield file
 df_merged_apps_yield_results = pd.merge(df_merged_apps_yield, df_results, left_on='18-digit ID (hed_application)', right_on='APPLICATION CHOICE ID', how='outer')
 
@@ -41,10 +68,10 @@ df_merged_apps_yield_results = pd.merge(df_merged_apps_yield, df_results, left_o
 def offer_count(status_column):
     return 1 if (status_column == 'Offer (Seat Held)').any() else 0
 
-# Group df_merged_apps_yield_results by '18-Digit ID (Round App)' and apply the custom function
+# Group df_merged_apps_yield_results by the round app apply the custom function to note whether a round app has an offer anywhere
 df_merged_apps_yield_results['OFFER COUNT'] = df_merged_apps_yield_results.groupby('18-Digit ID (Round App)')['ASSIGNMENT STATUS'].transform(offer_count)
 
-# Sort and filter the merged files before writing to CSVs
+# Filter and sort the merged files before writing to CSVs
 df_merged_apps_yield_results_sorted = df_merged_apps_yield_results.sort_values(by=['Application ID', 'Program Rank'])
 df_offered = df_merged_apps_yield_results[df_merged_apps_yield_results['ASSIGNMENT STATUS'] == 'Offer (Seat Held)']
 df_waitlisted = df_merged_apps_yield_results[(df_merged_apps_yield_results['ASSIGNMENT STATUS'] == 'Waitlisted') & (df_merged_apps_yield_results['OFFER COUNT'] == 0) & (df_merged_apps_yield_results['Program Rank'] == 1)]
